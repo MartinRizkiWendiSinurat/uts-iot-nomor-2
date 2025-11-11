@@ -1,74 +1,81 @@
-from flask import Flask, jsonify, render_template
+from flask import Flask, render_template, jsonify, request
 import mysql.connector
+import paho.mqtt.publish as publish
+import json
 
-# Inisialisasi Flask
 app = Flask(__name__)
 
-# --- Koneksi ke Database ---
-db = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="",
-    database="db_cuaca"
-)
+# === KONFIGURASI DATABASE ===
+def get_db():
+    return mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="db_hidroponik"
+    )
 
-@app.route('/api', methods=['GET'])
-def get_data():
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM tb_cuaca ORDER BY id DESC LIMIT 10")
-    data = cursor.fetchall()
+# === KONFIGURASI MQTT ===
+MQTT_BROKER = "test.mosquitto.org"
+MQTT_PORT = 1883
+MQTT_TOPIC_CONTROL = "iot/hidroponik/control"
 
-    if not data:
-        return jsonify({"message": "Belum ada data"}), 404
-
-    # Ambil list nilai dari setiap kolom
-    suhu_list = [row['suhu'] for row in data]
-    humid_list = [row['humid'] for row in data]
-    lux_list = [row['lux'] for row in data]
-
-    # Buat hasil JSON
-    result = {
-        "jumlah_data": len(data),
-        "suhumax": max(suhu_list),
-        "suhumin": min(suhu_list),
-        "suhurata": round(sum(suhu_list) / len(suhu_list), 2),
-        "humidmax": max(humid_list),
-        "humidmin": min(humid_list),
-        "humidrata": round(sum(humid_list) / len(humid_list), 2),
-        "luxmax": max(lux_list),
-        "luxmin": min(lux_list),
-        "luxrata": round(sum(lux_list) / len(lux_list), 2),
-        "data_terbaru": data
-    }
-
-    return jsonify(result)
-
-@app.route('/')
+# === HALAMAN UTAMA ===
+@app.route("/")
 def index():
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM tb_cuaca ORDER BY id DESC LIMIT 10")
-    data = cursor.fetchall()
-    
-    # Hitung statistik untuk ditampilkan di dashboard
-    if data:
-        suhu_list = [row['suhu'] for row in data]
-        humid_list = [row['humid'] for row in data]
-        lux_list = [row['lux'] for row in data]
-        
-        stats = {
-            "suhu_tertinggi": max(suhu_list),
-            "kelembapan_tertinggi": max(humid_list),
-            "kecerahan_tertinggi": max(lux_list)
-        }
-    else:
-        stats = {
-            "suhu_tertinggi": 0,
-            "kelembapan_tertinggi": 0,
-            "kecerahan_tertinggi": 0
-        }
-    
-    return render_template('index.html', data=data, stats=stats)
+    try:
+        db = get_db()
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM data_sensor ORDER BY id DESC LIMIT 10")
+        data = cursor.fetchall()
+        cursor.close()
+        db.close()
 
-if __name__ == '__main__':
-    print("🚀 Flask berjalan di http://127.0.0.1:5000")
-    app.run(debug=True)
+        latest = data[0] if data else None
+        return render_template("index.html", data=data, latest=latest)
+    except Exception as e:
+        return f"<h3>❌ Gagal memuat data: {e}</h3>"
+
+# === API: AMBIL DATA REALTIME ===
+@app.route("/api/realtime")
+def api_realtime():
+    try:
+        db = get_db()
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM data_sensor ORDER BY id DESC LIMIT 1")
+        data = cursor.fetchone()
+        cursor.close()
+        db.close()
+        if data:
+            return jsonify({"status": "success", "data": data})
+        else:
+            return jsonify({"status": "error", "message": "Belum ada data"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+# === API: KONTROL POMPA ===
+@app.route("/api/control/pompa", methods=["POST"])
+def control_pompa():
+    try:
+        req = request.get_json()
+        status_pompa = req.get("pompa", False)
+
+        # payload JSON untuk dikirim ke ESP32 via MQTT
+        payload = json.dumps({"pompa": status_pompa})
+        publish.single(
+            MQTT_TOPIC_CONTROL,
+            payload,
+            hostname=MQTT_BROKER,
+            port=MQTT_PORT,
+        )
+
+        return jsonify({
+            "status": "success",
+            "message": f"Pompa {'dinyalakan' if status_pompa else 'dimatikan'}"
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+if __name__ == "__main__":
+    print("🚀 Flask Dashboard Hidroponik IoT Aktif")
+    print("👉 Buka di browser: http://127.0.0.1:5000")
+    app.run(debug=True, host="0.0.0.0", port=5000)

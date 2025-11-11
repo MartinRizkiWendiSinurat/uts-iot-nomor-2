@@ -2,153 +2,226 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <title>🌤 Dashboard Cuaca ESP32</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🌱 Hidroponik IoT Dashboard</title>
   <style>
     body {
-      font-family: "Poppins", Arial, sans-serif;
-      background: linear-gradient(135deg, #dbeafe, #f0fdf4);
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #74ebd5, #9face6);
       margin: 0;
+      padding: 0;
+      color: #333;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 40px auto;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
       padding: 30px;
     }
 
-    h1 {
+    header {
       text-align: center;
-      color: #2563eb;
-      font-size: 2em;
-      margin-bottom: 10px;
+      margin-bottom: 30px;
     }
 
-    p.subtitle {
-      text-align: center;
-      color: #64748b;
-      margin-bottom: 40px;
-      font-style: italic;
+    header h1 {
+      margin-bottom: 10px;
+      color: #4a4ae6;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
     }
 
     .card {
-      background: white;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      background: #f9f9ff;
       border-radius: 15px;
       padding: 20px;
-      max-width: 1000px;
-      margin: auto;
-      transition: transform 0.3s;
+      text-align: center;
+      transition: all 0.3s;
     }
 
     .card:hover {
-      transform: translateY(-4px);
+      transform: scale(1.05);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
     }
+
+    .value {
+      font-size: 2.5em;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .unit {
+      color: #777;
+      font-size: 0.9em;
+    }
+
+    .status {
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-weight: bold;
+      display: inline-block;
+      margin-top: 10px;
+    }
+
+    .normal { background: #d4edda; color: #155724; }
+    .waspada { background: #fff3cd; color: #856404; }
+    .bahaya { background: #f8d7da; color: #721c24; }
+
+    .controls {
+      text-align: center;
+      margin: 30px 0;
+    }
+
+    button {
+      padding: 12px 30px;
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 5px;
+      transition: 0.3s;
+    }
+
+    .on { background: #28a745; }
+    .off { background: #dc3545; }
+    button:hover { transform: scale(1.05); }
 
     table {
       width: 100%;
       border-collapse: collapse;
-      border-radius: 10px;
-      overflow: hidden;
+      margin-top: 15px;
+    }
+
+    th, td {
+      border-bottom: 1px solid #eee;
+      padding: 10px;
+      text-align: center;
     }
 
     th {
-      background: #2563eb;
+      background: #4a4ae6;
       color: white;
-      padding: 12px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      font-size: 0.9em;
-    }
-
-    td {
-      background-color: #f8fafc;
-      text-align: center;
-      padding: 10px;
-      border-bottom: 1px solid #e2e8f0;
-      font-size: 0.95em;
-    }
-
-    tr:hover td {
-      background-color: #e0f2fe;
-      transition: background 0.3s;
+      font-size: 0.85em;
     }
 
     footer {
       text-align: center;
       margin-top: 40px;
+      color: #666;
       font-size: 0.9em;
-      color: #94a3b8;
-    }
-
-    .summary {
-      display: flex;
-      justify-content: space-around;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-
-    .summary-card {
-      background: #f1f5f9;
-      border-radius: 12px;
-      padding: 15px 25px;
-      min-width: 160px;
-      text-align: center;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-    }
-
-    .summary-card h3 {
-      margin: 0;
-      color: #334155;
-      font-size: 1em;
-    }
-
-    .summary-card p {
-      margin: 5px 0 0;
-      color: #2563eb;
-      font-weight: bold;
-      font-size: 1.2em;
     }
   </style>
-  <meta http-equiv="refresh" content="5">
 </head>
 <body>
-  <h1>🌤 Dashboard Cuaca ESP32</h1>
-  <p class="subtitle">Data sensor suhu, kelembapan, dan intensitas cahaya dikirim melalui MQTT</p>
+  <div class="container">
+    <header>
+      <h1>🌱 Hidroponik IoT Dashboard</h1>
+      <p>Monitoring & Kontrol Sistem Hidroponik Real-Time</p>
+    </header>
 
-  <div class="card">
-    <div class="summary">
-      <div class="summary-card">
-        <h3>Suhu Tertinggi</h3>
-        <p>{{ data[0]['suhu'] if data else '-' }} °C</p>
+    {% if latest %}
+    <div class="grid">
+      <div class="card">
+        <h3>🌡️ Suhu</h3>
+        <div class="value" id="suhu">{{ latest.suhu }}</div>
+        <div class="unit">°C</div>
       </div>
-      <div class="summary-card">
-        <h3>Kelembapan (%)</h3>
-        <p>{{ data[0]['humid'] if data else '-' }}</p>
+      <div class="card">
+        <h3>💧 Kelembapan</h3>
+        <div class="value" id="humidity">{{ latest.humidity }}</div>
+        <div class="unit">%</div>
       </div>
-      <div class="summary-card">
-        <h3>Kecerahan (Lux)</h3>
-        <p>{{ data[0]['lux'] if data else '-' }}</p>
+      <div class="card">
+        <h3>☀️ Kecerahan</h3>
+        <div class="value" id="lux">{{ latest.lux }}</div>
+        <div class="unit">Lux</div>
       </div>
+      <div class="card">
+        <h3>📊 Status</h3>
+        <div id="status" class="status {{ latest.status|lower }}">{{ latest.status }}</div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="controls">
+      <button class="on" onclick="controlPompa(true)">▶️ Nyalakan Pompa</button>
+      <button class="off" onclick="controlPompa(false)">⏹️ Matikan Pompa</button>
+      <p id="msg" style="font-weight:bold; margin-top:10px;"></p>
     </div>
 
     <table>
-      <tr>
-        <th>ID</th>
-        <th>Suhu (°C)</th>
-        <th>Kelembapan (%)</th>
-        <th>Kecerahan (Lux)</th>
-        <th>Waktu</th>
-      </tr>
-      {% for row in data %}
-      <tr>
-        <td>{{ row['id'] }}</td>
-        <td>{{ row['suhu'] }}</td>
-        <td>{{ row['humid'] }}</td>
-        <td>{{ row['lux'] }}</td>
-        <td>{{ row['ts'] }}</td>
-      </tr>
-      {% endfor %}
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Suhu</th>
+          <th>Kelembapan</th>
+          <th>Kecerahan</th>
+          <th>Status</th>
+          <th>Pompa</th>
+          <th>Waktu</th>
+        </tr>
+      </thead>
+      <tbody id="data-tbody">
+        {% for row in data %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.suhu }}</td>
+          <td>{{ row.humidity }}</td>
+          <td>{{ row.lux }}</td>
+          <td>{{ row.status }}</td>
+          <td>{{ 'ON' if row.pompa else 'OFF' }}</td>
+          <td>{{ row.timestamp }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
     </table>
+
+    <footer>
+      © 2025 Hidroponik IoT | Flask + MQTT + ESP32
+    </footer>
   </div>
 
-  <footer>
-    © 2025 Dashboard Cuaca ESP32 | Dibuat dengan ❤️ menggunakan Flask & MQTT
-  </footer>
+  <script>
+    // Fungsi kontrol pompa
+    async function controlPompa(status) {
+      const res = await fetch('/api/control/pompa', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({pompa: status})
+      });
+      const result = await res.json();
+      const msg = document.getElementById('msg');
+      msg.style.color = result.status === 'success' ? '#28a745' : '#dc3545';
+      msg.textContent = result.message;
+      setTimeout(() => msg.textContent = '', 3000);
+    }
+
+    // Update realtime
+    async function updateRealtime() {
+      const res = await fetch('/api/realtime');
+      const data = await res.json();
+      if (data.status === 'success') {
+        const d = data.data;
+        document.getElementById('suhu').textContent = d.suhu;
+        document.getElementById('humidity').textContent = d.humidity;
+        document.getElementById('lux').textContent = d.lux;
+        const s = document.getElementById('status');
+        s.textContent = d.status;
+        s.className = 'status ' + d.status.toLowerCase();
+      }
+    }
+
+    setInterval(updateRealtime, 5000);
+  </script>
 </body>
 </html>
